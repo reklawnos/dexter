@@ -1,0 +1,11 @@
+[package]
+name = "dexter"
+version = "0.1.0"
+license = "MIT"
+homepage = "https://github.com/reklawnos/dexter/"
+repository = "https://github.com/reklawnos/dexter/"
+authors = ["Walker Henderson <wjahenderson@gmail.com>"]
+
+[dependencies]
+rand = "0.3"
+time = "0.1"
