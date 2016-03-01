@@ -39,8 +39,8 @@ impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
 macro_rules! experiment {
     ($dexter_type:ident, $name:expr, current:$current:block new:$new:block) => {
         {
-            use rand::{thread_rng, Rng};
-            use time::{precise_time_ns};
+            use $crate::internal::rand::{thread_rng, Rng};
+            use $crate::internal::time::{precise_time_ns};
 
             let mut rng = thread_rng();
             let mut did_one = false;
@@ -112,4 +112,10 @@ mod test {
         };
         println!("{}", a);
     }
+}
+
+#[doc(hidden)]
+mod internal {
+    pub use rand;
+    pub use time;
 }
