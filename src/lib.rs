@@ -115,7 +115,7 @@ mod test {
 }
 
 #[doc(hidden)]
-mod internal {
+pub mod internal {
     pub use rand;
     pub use time;
 }
