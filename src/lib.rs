@@ -35,7 +35,8 @@ impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
     }
 }
 
-macro_rules! dexter {
+#[macro_export]
+macro_rules! experiment {
     ($dexter_type:ident, $name:expr, current:$current:block new:$new:block) => {
         {
             use rand::{thread_rng, Rng};
@@ -97,7 +98,7 @@ mod test {
 
     #[test]
     fn it_works() {
-        let a = dexter!{
+        let a = experiment!{
             TestExperiment,
             "experiment!",
             current: {
