@@ -2,11 +2,13 @@
 extern crate rand;
 extern crate time;
 
+use rand::{thread_rng, Rng};
+use time::{precise_time_ns};
 
 #[derive(Debug)]
 pub struct CohortResult<T: Clone> {
-    duration: f64,
-    result: T
+    pub duration: f64,
+    pub result: T
 }
 
 impl<T: Clone> CohortResult<T> {
@@ -20,9 +22,9 @@ impl<T: Clone> CohortResult<T> {
 
 #[derive(Debug)]
 pub struct ExperimentResult<CurrentT: Clone, NewT: Clone> {
-    current: CohortResult<CurrentT>,
-    new: CohortResult<NewT>,
-    name: &'static str
+    pub current: CohortResult<CurrentT>,
+    pub new: CohortResult<NewT>,
+    pub name: &'static str
 }
 
 impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
@@ -35,62 +37,57 @@ impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
     }
 }
 
-#[macro_export]
-macro_rules! experiment {
-    ($dexter_type:ident, $name:expr, current:$current:block new:$new:block) => {
-        {
-            use $crate::internal::rand::{thread_rng, Rng};
-            use $crate::internal::time::{precise_time_ns};
+pub trait Experiment<CurrentResult: Clone, NewResult: Clone> {
+    fn publish(_: ExperimentResult<CurrentResult, NewResult>) {}
 
-            let mut rng = thread_rng();
-            let mut did_one = false;
-            let current_goes_first: bool = rng.gen();
-            let mut current_val = None;
-            let mut new_val = None;
-            let mut current_duration = 0;
-            let mut new_duration = 0;
-            loop {
-                if (current_goes_first || did_one) && !(current_goes_first && did_one) {
-                    let start = precise_time_ns();
-                    current_val = Some($current);
-                    current_duration = precise_time_ns() - start;
-                    if did_one {
-                        break;
-                    } else {
-                        did_one = true;
-                    }
-                }
-                if (!current_goes_first || did_one) && !(!current_goes_first && did_one) {
-                    let start = precise_time_ns();
-                    new_val = Some($new);
-                    new_duration = precise_time_ns() - start;
-                    if did_one {
-                        break;
-                    } else {
-                        did_one = true;
-                    }
+    fn carry_out<C, N, Param>(name: &'static str, mut current: C, mut new: N, param: Param) -> CurrentResult
+        where C: FnMut(Param) -> CurrentResult,
+              N: FnMut(Param) -> NewResult,
+              Param: Clone {
+        let mut rng = thread_rng();
+        let mut did_one = false;
+        let current_goes_first: bool = rng.gen();
+        let mut current_val = None;
+        let mut new_val = None;
+        let mut current_duration = 0;
+        let mut new_duration = 0;
+        loop {
+            if (current_goes_first || did_one) && !(current_goes_first && did_one) {
+                let start = precise_time_ns();
+                current_val = Some(current(param.clone()));
+                current_duration = precise_time_ns() - start;
+                if did_one {
+                    break;
+                } else {
+                    did_one = true;
                 }
             }
-            $dexter_type::publish(ExperimentResult::new(
-                CohortResult::new(current_duration as f64 * 1e-9, &current_val.as_ref().unwrap()),
-                CohortResult::new(new_duration as f64 * 1e-9, &new_val.as_ref().unwrap()),
-                $name
-            ));
-            current_val.unwrap()
+            if (!current_goes_first || did_one) && !(!current_goes_first && did_one) {
+                let start = precise_time_ns();
+                new_val = Some(new(param.clone()));
+                new_duration = precise_time_ns() - start;
+                if did_one {
+                    break;
+                } else {
+                    did_one = true;
+                }
+            }
         }
+        Self::publish(ExperimentResult::new(
+            CohortResult::new(current_duration as f64 * 1e-9, &current_val.as_ref().unwrap()),
+            CohortResult::new(new_duration as f64 * 1e-9, &new_val.as_ref().unwrap()),
+            name
+        ));
+        current_val.unwrap()
     }
-}
-
-pub trait Dexter<CurrentT: Clone, NewT: Clone> {
-    fn publish(_: ExperimentResult<CurrentT, NewT>) {}
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::{Experiment, ExperimentResult};
     struct TestExperiment;
 
-    impl Dexter<String, String> for TestExperiment {
+    impl Experiment<String, String> for TestExperiment {
         fn publish(result: ExperimentResult<String, String>) {
             println!("{:?}", result);
         }
@@ -98,18 +95,19 @@ mod test {
 
     #[test]
     fn it_works() {
-        let a = experiment!{
-            TestExperiment,
+        let a_str = "bagelman";
+        let a = TestExperiment::carry_out(
             "experiment!",
-            current: {
+            |_| {
                 println!("current went!");
-                "current result".to_string()
-            }
-            new: {
+                a_str.to_string()
+            },
+            |_| {
                 println!("new went!");
-                "new result".to_string()
-            }
-        };
+                a_str.to_string()
+            },
+            ()
+        );
         println!("{}", a);
     }
 }
