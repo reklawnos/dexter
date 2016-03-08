@@ -42,18 +42,27 @@ pub struct ExperimentBuilder<'a, CurrentResult: Clone, NewResult: Clone, Param: 
     name: &'static str,
     current: Box<FnMut(Param) -> CurrentResult + 'a>,
     new: Box<FnMut(Param) -> NewResult + 'a>,
+    setup: Option<Box<FnMut(Param) -> Param + 'a>>,
     run_if: Option<Box<FnMut(Param) -> bool + 'a>>,
     experiment: PhantomData<E>
 }
 
 impl<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<CurrentResult, NewResult, Param>> ExperimentBuilder<'a, CurrentResult, NewResult, Param, E> {
+    pub fn setup<S>(mut self, setup: S) -> Self
+            where S: FnMut(Param) -> Param + 'a {
+        self.setup = Some(Box::new(setup));
+        self
+    }
     pub fn run_if<R>(mut self, run_if: R) -> Self
             where R: FnMut(Param) -> bool + 'a {
         self.run_if = Some(Box::new(run_if));
         self
     }
 
-    pub fn carry_out(mut self, param: Param) -> CurrentResult {
+    pub fn carry_out(mut self, mut param: Param) -> CurrentResult {
+        if let Some(mut s) = self.setup {
+            param = s(param);
+        }
         match self.run_if {
             Some(mut r) => {
                 if !r(param.clone()) {
@@ -62,32 +71,25 @@ impl<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<Cur
             }
             _ => {}
         }
+
         let mut rng = thread_rng();
-        let mut did_one = false;
-        let current_goes_first: bool = rng.gen();
         let mut current_val = None;
         let mut new_val = None;
         let mut current_duration = 0;
         let mut new_duration = 0;
-        loop {
-            if (current_goes_first || did_one) && !(current_goes_first && did_one) {
-                let start = precise_time_ns();
-                current_val = Some((self.current)(param.clone()));
-                current_duration = precise_time_ns() - start;
-                if did_one {
-                    break;
-                } else {
-                    did_one = true;
+        let mut order = [0, 1];
+        rng.shuffle(&mut order);
+        for i in &order {
+            match *i {
+                0 => {
+                    let start = precise_time_ns();
+                    current_val = Some((self.current)(param.clone()));
+                    current_duration = precise_time_ns() - start;
                 }
-            }
-            if (!current_goes_first || did_one) && !(!current_goes_first && did_one) {
-                let start = precise_time_ns();
-                new_val = Some((self.new)(param.clone()));
-                new_duration = precise_time_ns() - start;
-                if did_one {
-                    break;
-                } else {
-                    did_one = true;
+                _ => {
+                    let start = precise_time_ns();
+                    new_val = Some((self.new)(param.clone()));
+                    new_duration = precise_time_ns() - start;
                 }
             }
         }
@@ -111,6 +113,7 @@ pub trait Experiment<CurrentResult: Clone, NewResult: Clone, Param: Clone> {
             name: name,
             current: Box::new(current),
             new: Box::new(new),
+            setup: None,
             run_if: None,
             experiment: PhantomData
         }
@@ -122,7 +125,7 @@ mod test {
     use super::{Experiment, ExperimentResult};
     struct TestExperiment;
 
-    impl Experiment<String, String, ()> for TestExperiment {
+    impl Experiment<String, String, Vec<char>> for TestExperiment {
         fn publish(result: ExperimentResult<String, String>) {
             println!("{:#?}", result);
         }
@@ -132,16 +135,17 @@ mod test {
     fn it_works() {
         let a_str = vec!['a', 'b', 'c'];
         let a = TestExperiment::new("experiment!",
-            |_| {
+            |p| {
                 println!("current went!");
-                a_str.clone().into_iter().collect()
+                p.into_iter().collect()
             },
-            |_| {
+            |p| {
                 println!("new went!");
-                a_str.clone().into_iter().collect()
+                p.into_iter().collect()
             })
+            .setup(|mut p| { p.sort(); p })
             .run_if(|_| true)
-            .carry_out(());
+            .carry_out(a_str.clone());
         println!("{}", a);
     }
 }
