@@ -13,7 +13,7 @@ pub struct CohortResult<T: Clone> {
 }
 
 impl<T: Clone> CohortResult<T> {
-    pub fn new(duration: f64, result: &T) -> Self {
+    fn new(duration: f64, result: &T) -> Self {
         CohortResult {
             duration: duration,
             result: result.clone()
@@ -29,7 +29,7 @@ pub struct ExperimentResult<CurrentT: Clone, NewT: Clone> {
 }
 
 impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
-    pub fn new(current: CohortResult<CurrentT>, new: CohortResult<NewT>, name: &'static str) -> Self {
+    fn new(current: CohortResult<CurrentT>, new: CohortResult<NewT>, name: &'static str) -> Self {
         ExperimentResult {
             current: current,
             new: new,
@@ -38,35 +38,35 @@ impl<CurrentT: Clone, NewT: Clone> ExperimentResult<CurrentT, NewT> {
     }
 }
 
-pub struct ExperimentBuilder<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<CurrentResult, NewResult, Param> + ?Sized> {
+pub struct ExperimentBuilder<'a, Cr: Clone, Nr: Clone, P, E: Experiment<Cr, Nr, P> + ?Sized> {
     name: &'static str,
-    current: Box<FnMut(Param) -> CurrentResult + 'a>,
-    new: Box<FnMut(Param) -> NewResult + 'a>,
-    setup: Option<Box<FnMut(Param) -> Param + 'a>>,
-    run_if: Option<Box<FnMut(Param) -> bool + 'a>>,
+    current: Box<FnMut(&P) -> Cr + 'a>,
+    new: Box<FnMut(&P) -> Nr + 'a>,
+    setup: Option<Box<FnMut(P) -> P + 'a>>,
+    run_if: Option<Box<FnMut(&P) -> bool + 'a>>,
     experiment: PhantomData<E>
 }
 
-impl<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<CurrentResult, NewResult, Param>> ExperimentBuilder<'a, CurrentResult, NewResult, Param, E> {
+impl<'a, Cr: Clone, Nr: Clone, P, E: Experiment<Cr, Nr, P>> ExperimentBuilder<'a, Cr, Nr, P, E> {
     pub fn setup<S>(mut self, setup: S) -> Self
-            where S: FnMut(Param) -> Param + 'a {
+            where S: FnMut(P) -> P + 'a {
         self.setup = Some(Box::new(setup));
         self
     }
     pub fn run_if<R>(mut self, run_if: R) -> Self
-            where R: FnMut(Param) -> bool + 'a {
+            where R: FnMut(&P) -> bool + 'a {
         self.run_if = Some(Box::new(run_if));
         self
     }
 
-    pub fn carry_out(mut self, mut param: Param) -> CurrentResult {
+    pub fn carry_out(mut self, mut param: P) -> Cr {
         if let Some(mut s) = self.setup {
             param = s(param);
         }
         match self.run_if {
             Some(mut r) => {
-                if !r(param.clone()) {
-                    return (self.current)(param.clone());
+                if !r(&param) {
+                    return (self.current)(&param);
                 }
             }
             _ => {}
@@ -83,12 +83,12 @@ impl<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<Cur
             match *i {
                 0 => {
                     let start = precise_time_ns();
-                    current_val = Some((self.current)(param.clone()));
+                    current_val = Some((self.current)(&param));
                     current_duration = precise_time_ns() - start;
                 }
                 _ => {
                     let start = precise_time_ns();
-                    new_val = Some((self.new)(param.clone()));
+                    new_val = Some((self.new)(&param));
                     new_duration = precise_time_ns() - start;
                 }
             }
@@ -103,12 +103,12 @@ impl<'a, CurrentResult: Clone, NewResult: Clone, Param: Clone, E: Experiment<Cur
 }
 
 
-pub trait Experiment<CurrentResult: Clone, NewResult: Clone, Param: Clone> {
-    fn publish(_: ExperimentResult<CurrentResult, NewResult>) {}
+pub trait Experiment<Cr: Clone, Nr: Clone, P> {
+    fn publish(_: ExperimentResult<Cr, Nr>) {}
 
-    fn new<'a, C, N>(name: &'static str, current: C, new: N) -> ExperimentBuilder<'a, CurrentResult, NewResult, Param, Self>
-        where C: FnMut(Param) -> CurrentResult + 'a,
-              N: FnMut(Param) -> NewResult + 'a {
+    fn new<'a, C, N>(name: &'static str, current: C, new: N) -> ExperimentBuilder<'a, Cr, Nr, P, Self>
+        where C: FnMut(&P) -> Cr + 'a,
+              N: FnMut(&P) -> Nr + 'a {
         ExperimentBuilder {
             name: name,
             current: Box::new(current),
@@ -137,15 +137,15 @@ mod test {
         let a = TestExperiment::new("experiment!",
             |p| {
                 println!("current went!");
-                p.into_iter().collect()
+                p.clone().into_iter().collect()
             },
             |p| {
                 println!("new went!");
-                p.into_iter().collect()
+                p.clone().into_iter().collect()
             })
             .setup(|mut p| { p.sort(); p })
             .run_if(|_| true)
-            .carry_out(a_str.clone());
+            .carry_out(a_str);
         println!("{}", a);
     }
 }
