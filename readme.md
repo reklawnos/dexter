@@ -2,6 +2,8 @@ Dexter
 ======
 A cool thing that does stuff like [Scientist](https://github.com/github/scientist), but for Rust!
 
+[![Build Status](https://travis-ci.org/reklawnos/dexter.svg?branch=master)](https://travis-ci.org/reklawnos/dexter)
+
 Here's an example:
 
 ```rust

@@ -5,5 +5,8 @@ rust:
   - beta
   - nightly
 
+after_success:
+  curl https://raw.githubusercontent.com/reklawnos/dexter/master/travis-doc-upload.sh | sh
+
 notifications:
   email: false
