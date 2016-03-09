@@ -3,6 +3,11 @@ language: rust
 rust:
   - stable
 
+script:
+  - cargo build --verbose
+  - cargo test --verbose
+  - cargo doc --verbose
+
 after_success:
   curl https://raw.githubusercontent.com/reklawnos/dexter/master/scripts/travis-doc-upload.sh | sh
 
