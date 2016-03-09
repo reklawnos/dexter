@@ -5,6 +5,7 @@ A cool thing that does stuff like [Scientist](https://github.com/github/scientis
 Here's an example:
 
 ```rust
+use dexter::*;
 struct ExamplePublisher;
 
 impl Publisher<Vec<char>, String, String> for ExamplePublisher {
@@ -19,7 +20,7 @@ impl Publisher<Vec<char>, String, String> for ExamplePublisher {
 
 fn main() {
   let chars = vec!['a', 'b', 'c'];
-  let mut p = TestPublisher{ result: None };
+  let mut p = ExamplePublisher;
   let result = Experiment::new("experiment",
       |a: &Vec<char>| {
           a.clone().into_iter().collect()

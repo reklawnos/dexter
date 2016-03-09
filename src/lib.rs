@@ -1,4 +1,35 @@
 //! A library for using the Branch by Abstraction pattern to test for performance and correctness.
+//!
+//! # Examples
+//! ```
+//! use dexter::*;
+//! struct ExamplePublisher;
+//!
+//! impl Publisher<Vec<char>, String, String> for ExamplePublisher {
+//!     fn publish(&mut self, result: ExperimentResult<String, String>) {
+//!         println!("{:#?}", result);
+//!     }
+//!
+//!     fn compare(&mut self, current_result: &String, new_result: &String) -> bool {
+//!         current_result == new_result
+//!     }
+//! }
+//!
+//! fn main() {
+//!   let chars = vec!['a', 'b', 'c'];
+//!   let mut p = ExamplePublisher;
+//!   let result = Experiment::new("experiment",
+//!       |a: &Vec<char>| {
+//!           a.clone().into_iter().collect()
+//!       },
+//!       |a: &Vec<char>| {
+//!           a.clone().into_iter().collect()
+//!       })
+//!       .run_if(|p| { p.len() == 3 })
+//!       .carry_out(chars.clone(), &mut p);
+//!   println!("{}", result);
+//! }
+//! ```
 #![warn(missing_docs, missing_debug_implementations,
         missing_copy_implementations, trivial_casts,
         trivial_numeric_casts, unsafe_code,
